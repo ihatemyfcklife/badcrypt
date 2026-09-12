@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    name: Test & Verify
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ['1.24', '1.26']
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+
+      - name: Verify dependencies
+        run: |
+          go mod verify
+          git diff --exit-code go.mod go.sum
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run unit & hardening tests (with race detector)
+        run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+
+      - name: Run benchmarks
+        run: go test -bench=".*" -benchmem -run=^$ ./...
+
+      - name: Run smoke fuzzing
+        run: |
+          go test -fuzz=FuzzFrameDecoder -fuzztime=5s
+          go test -fuzz=FuzzHandshakeParser -fuzztime=5s
+          go test -fuzz=FuzzReplayCache -fuzztime=5s

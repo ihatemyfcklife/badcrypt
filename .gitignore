@@ -1,0 +1,25 @@
+# Binaries and executables
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Test coverage and profiling
+*.prof
+coverage.txt
+coverage.html
+profile.out
+
+# Go build cache and vendor
+vendor/
+
+# IDE and OS files
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
