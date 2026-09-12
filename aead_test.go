@@ -999,6 +999,20 @@ func TestShardAEAD_ZeroLengthCapacityBuffersAndAADEdgeCases(t *testing.T) {
 		t.Fatalf("decrypted mismatch: expected %q, got %q", msg, decryptedVar)
 	}
 
-	// 5. putAADBuffer with nil
+	// 5. Seal and Open with empty plaintext payload
+	emptyPlain := []byte{}
+	sealedEmpty, err := aead.Seal(nil, emptyPlain, []byte("empty-aad"))
+	if err != nil {
+		t.Fatalf("Seal with empty plaintext failed: %v", err)
+	}
+	decryptedEmpty, err := aead.Open(nil, sealedEmpty, []byte("empty-aad"))
+	if err != nil {
+		t.Fatalf("Open with empty plaintext failed: %v", err)
+	}
+	if len(decryptedEmpty) != 0 {
+		t.Fatalf("expected empty decrypted payload, got %d bytes", len(decryptedEmpty))
+	}
+
+	// 6. putAADBuffer with nil
 	putAADBuffer(nil)
 }
