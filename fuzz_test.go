@@ -1,6 +1,8 @@
 package crypto
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
 	"testing"
 )
 
@@ -17,16 +19,18 @@ func FuzzFrameDecoder(f *testing.F) {
 	f.Add(make([]byte, ConstantWireFrameSize))
 
 	validPlain := make([]byte, DefaultPlaintextFrameSize)
-	validFrame := aead.SealFrame(nil, validPlain)
+	validFrame, _ := aead.SealFrame(nil, validPlain)
 	f.Add(validFrame)
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		_, _ = aead.OpenFrame(nil, data)
+		recvAEAD, _ := NewShardAEAD(key)
+		_, _ = recvAEAD.OpenFrame(nil, data)
 	})
 }
 
 // FuzzHandshakeParser fuzzes ClientHello and ServerHello parsers with arbitrary datagram inputs.
 func FuzzHandshakeParser(f *testing.F) {
+	serverPub, serverPriv, _ := ed25519.GenerateKey(rand.Reader)
 	validTokens := map[string]bool{"fuzz-token": true}
 
 	f.Add([]byte{})
@@ -35,15 +39,15 @@ func FuzzHandshakeParser(f *testing.F) {
 	hello, clientPriv, decapsKey, nonce, _ := GenerateClientHello("fuzz-token")
 	f.Add(hello)
 
-	resp, _, _, _ := ProcessClientHello(hello, validTokens, 0x1234)
+	resp, _, _, _ := ProcessClientHello(hello, serverPriv, validTokens, 0x1234)
 	f.Add(resp)
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		// Test ClientHello parsing
-		_, _, _, _ = ProcessClientHello(data, validTokens, 0x5678)
+		_, _, _, _ = ProcessClientHello(data, serverPriv, validTokens, 0x5678)
 
 		// Test ServerHello parsing
-		_, _, _ = ProcessServerHello(data, clientPriv, decapsKey, nonce)
+		_, _, _ = ProcessServerHello(hello, data, clientPriv, decapsKey, nonce, "fuzz-token", serverPub)
 	})
 }
 
@@ -52,15 +56,55 @@ func FuzzReplayCache(f *testing.F) {
 	f.Add([]byte("initial-nonce-1"))
 	f.Add(make([]byte, 16))
 
+	cache := NewAntiReplayCache()
+	defer cache.Close()
+
 	f.Fuzz(func(t *testing.T, nonce []byte) {
-		cache := NewAntiReplayCache()
-		defer cache.Close()
 		_ = cache.AddOrCheck(nonce)
-		// Double check should detect replay for 16-byte nonces
 		if len(nonce) == 16 {
 			replayed := cache.AddOrCheck(nonce)
 			if !replayed {
 				t.Fatalf("Expected replayed=true on second call for %x", nonce)
+			}
+		}
+	})
+}
+
+// FuzzAntiReplayWindow fuzzes the sliding window with random sequences.
+func FuzzAntiReplayWindow(f *testing.F) {
+	f.Add(uint64(1))
+	f.Add(uint64(100))
+	f.Add(uint64(1000))
+
+	f.Fuzz(func(t *testing.T, seq uint64) {
+		w := &antiReplayWindow{}
+		_ = w.check(seq)
+		_ = w.mark(seq)
+		// Second check must detect replay
+		if seq != 0 {
+			if err := w.check(seq); err == nil {
+				t.Fatalf("expected replay detection for seq %d", seq)
+			}
+		}
+	})
+}
+
+// FuzzSlidingWindowSequence fuzzes the sliding window with sequential byte streams as packet sequence numbers.
+func FuzzSlidingWindowSequence(f *testing.F) {
+	f.Add([]byte{1, 2, 3, 4, 5})
+	f.Add([]byte{10, 5, 20, 15, 12, 10})
+	f.Add([]byte{255, 1, 255, 0, 100})
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		w := &antiReplayWindow{}
+		for _, b := range data {
+			seq := uint64(b)
+			errCheck := w.check(seq)
+			errMark := w.mark(seq)
+			if seq == 0 {
+				if errCheck == nil || errMark == nil {
+					t.Fatalf("expected error for seq=0")
+				}
 			}
 		}
 	})

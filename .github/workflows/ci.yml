@@ -43,3 +43,5 @@ jobs:
           go test -fuzz=FuzzFrameDecoder -fuzztime=5s
           go test -fuzz=FuzzHandshakeParser -fuzztime=5s
           go test -fuzz=FuzzReplayCache -fuzztime=5s
+          go test -fuzz=FuzzAntiReplayWindow -fuzztime=5s
+          go test -fuzz=FuzzSlidingWindowSequence -fuzztime=5s
