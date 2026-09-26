@@ -3,7 +3,7 @@
 [![CI](https://github.com/ihatemyfcklife/badcrypt/actions/workflows/release.yml/badge.svg)](https://github.com/ihatemyfcklife/badcrypt/actions)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ihatemyfcklife/badcrypt)](https://goreportcard.com/report/github.com/ihatemyfcklife/badcrypt)
 [![Go Reference](https://pkg.go.dev/badge/github.com/ihatemyfcklife/badcrypt.svg)](https://pkg.go.dev/github.com/ihatemyfcklife/badcrypt)
-[![License: GPL v3 / Commercial](https://img.shields.io/badge/License-GPLv3%20%2F%20Commercial-blue.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 **Badcrypt** is a hardened, production-ready Go cryptographic library engineered for high-throughput, low-latency network engines and secure protocols. It delivers an authenticated hybrid post-quantum key exchange (ML-KEM-768 + X25519 + Ed25519), high-performance directional ChaCha20-Poly1305 authenticated encryption with an RFC 6479 anti-replay sliding window, direct SessionID demultiplexing via Additional Authenticated Data (AAD), and true zero-allocation memory pooling.
 
@@ -262,7 +262,4 @@ go test -fuzz=FuzzSlidingWindowSequence -fuzztime=10s
 
 ## License
 
-Badcrypt is dual-licensed:
-
-- **GNU General Public License v3.0 (GPLv3)** for open-source applications.
-- **Commercial OEM & Enterprise License** for proprietary deployments, closed-source products, and embedded systems requiring non-copyleft terms and dedicated support. Contact: `ihatemyfcklife@proton.me`.
+This project is licensed under the Apache License, Version 2.0. See the [LICENSE](LICENSE) file for the full license text.
