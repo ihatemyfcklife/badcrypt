@@ -1,6 +1,6 @@
 # Badcrypt (`github.com/ihatemyfcklife/badcrypt`)
 
-[![CI](https://github.com/ihatemyfcklife/badcrypt/actions/workflows/ci.yml/badge.svg)](https://github.com/ihatemyfcklife/badcrypt/actions)
+[![CI](https://github.com/ihatemyfcklife/badcrypt/actions/workflows/release.yml/badge.svg)](https://github.com/ihatemyfcklife/badcrypt/actions)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ihatemyfcklife/badcrypt)](https://goreportcard.com/report/github.com/ihatemyfcklife/badcrypt)
 [![Go Reference](https://pkg.go.dev/badge/github.com/ihatemyfcklife/badcrypt.svg)](https://pkg.go.dev/github.com/ihatemyfcklife/badcrypt)
 [![License: GPL v3 / Commercial](https://img.shields.io/badge/License-GPLv3%20%2F%20Commercial-blue.svg)](LICENSE)
