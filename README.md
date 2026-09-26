@@ -183,8 +183,8 @@ if err != nil {
 	log.Fatalf("Authentication or decryption failed: %v", err)
 }
 
-// Any replayed frame is instantly rejected:
-// _, err = receiverAEAD.OpenFrame(sealedWire, sealedWire) -> badcrypt.ErrReplayedPacket
+// Any duplicate wire packet received over the network is instantly rejected:
+// _, err = receiverAEAD.OpenFrame(dst, replayedWirePacket) // returns badcrypt.ErrReplayedPacket
 ```
 
 ### 4. MTU Calibration & UDP Handshake Fragmentation
