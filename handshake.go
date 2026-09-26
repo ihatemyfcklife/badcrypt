@@ -1,4 +1,4 @@
-package crypto
+package badcrypt
 
 import (
 	"bytes"
@@ -26,47 +26,53 @@ import (
 )
 
 var (
-	// MagicVectisHeader identifies Vectis protocol handshake datagrams.
-	MagicVectisHeader = [4]byte{'V', 'E', 'C', 'T'}
+	// MagicHeader identifies Badcrypt protocol handshake datagrams.
+	MagicHeader = [4]byte{'B', 'C', 'R', 'Y'}
 
-	// ErrInvalidMagic is returned when a datagram does not start with MagicVectisHeader.
-	ErrInvalidMagic = errors.New("crypto: invalid Vectis protocol magic")
+	// MagicBadcryptHeader is an alias for MagicHeader.
+	MagicBadcryptHeader = MagicHeader
+
+	// MagicVectisHeader is an alias kept for backwards compatibility.
+	MagicVectisHeader = MagicHeader
+
+	// ErrInvalidMagic is returned when a datagram does not start with MagicHeader.
+	ErrInvalidMagic = errors.New("badcrypt: invalid protocol magic")
 
 	// ErrInvalidMsgType is returned when an unexpected handshake message type is encountered.
-	ErrInvalidMsgType = errors.New("crypto: invalid handshake message type")
+	ErrInvalidMsgType = errors.New("badcrypt: invalid handshake message type")
 
 	// ErrUnauthorizedToken is returned when a client presents an unapproved or missing authentication token.
-	ErrUnauthorizedToken = errors.New("crypto: unauthorized authentication token")
+	ErrUnauthorizedToken = errors.New("badcrypt: unauthorized authentication token")
 
 	// ErrTimestampDrift is returned when handshake timestamp is outside the allowed +/- 60s drift window.
-	ErrTimestampDrift = errors.New("crypto: handshake timestamp outside allowed drift window (+/- 60s)")
+	ErrTimestampDrift = errors.New("badcrypt: handshake timestamp outside allowed drift window (+/- 60s)")
 
 	// ErrReplayedHandshake is returned when a duplicate handshake nonce is detected.
-	ErrReplayedHandshake = errors.New("crypto: replayed client handshake detected")
+	ErrReplayedHandshake = errors.New("badcrypt: replayed client handshake detected")
 
 	// ErrHandshakeMalformed is returned when a handshake payload is truncated or invalid.
-	ErrHandshakeMalformed = errors.New("crypto: malformed handshake payload")
+	ErrHandshakeMalformed = errors.New("badcrypt: malformed handshake payload")
 
 	// ErrInvalidServerSignature is returned when the server's Ed25519 signature fails verification (MITM attack).
-	ErrInvalidServerSignature = errors.New("crypto: invalid server Ed25519 identity signature (MITM detected)")
+	ErrInvalidServerSignature = errors.New("badcrypt: invalid server Ed25519 identity signature (MITM detected)")
 
 	// ErrInvalidFinishedMAC is returned when the server confirmation MAC does not verify.
-	ErrInvalidFinishedMAC = errors.New("crypto: invalid handshake finished confirmation MAC")
+	ErrInvalidFinishedMAC = errors.New("badcrypt: invalid handshake finished confirmation MAC")
 
 	// ErrEmptyToken is returned when an empty authentication token is provided.
-	ErrEmptyToken = errors.New("crypto: authentication token cannot be empty")
+	ErrEmptyToken = errors.New("badcrypt: authentication token cannot be empty")
 
 	// ErrInvalidServerKey is returned when the server's Ed25519 key has an invalid length or format.
-	ErrInvalidServerKey = errors.New("crypto: invalid server Ed25519 key")
+	ErrInvalidServerKey = errors.New("badcrypt: invalid server Ed25519 key")
 
 	// ErrHandshakeTimeout is returned when a stream handshake exceeds its deadline.
-	ErrHandshakeTimeout = errors.New("crypto: handshake timed out or deadline exceeded")
+	ErrHandshakeTimeout = errors.New("badcrypt: handshake timed out or deadline exceeded")
 
 	// ErrReassemblyBufferFull is returned when the handshake datagram reassembler exceeds its pending capacity.
-	ErrReassemblyBufferFull = errors.New("crypto: handshake datagram reassembly buffer full")
+	ErrReassemblyBufferFull = errors.New("badcrypt: handshake datagram reassembly buffer full")
 
 	// ErrSourceRateLimited is returned when a source endpoint exceeds the allowed reassembly rate or concurrent session quota.
-	ErrSourceRateLimited = errors.New("crypto: handshake datagram reassembly source rate limit exceeded")
+	ErrSourceRateLimited = errors.New("badcrypt: handshake datagram reassembly source rate limit exceeded")
 )
 
 const (
@@ -281,7 +287,7 @@ func ResetGlobalReplayCache() {
 	globalReplayCache.Reset()
 }
 
-const tokenPrefix = "vectis-token-id-v1:"
+const tokenPrefix = "badcrypt-token-id-v1:"
 
 // TokenID computes the 16-byte public token identifier for database lookup without revealing the token.
 // All temporary secret buffers are wiped from memory before returning.
@@ -482,7 +488,11 @@ func getOrDeriveServerXPriv(edPriv ed25519.PrivateKey) (*ecdh.PrivateKey, error)
 	return xPriv, nil
 }
 
-const tokenMaskContext = "vectis-token-mask-v1:"
+const (
+	tokenMaskContext     = "badcrypt-token-mask-v1:"
+	sessionSecretContext = "badcrypt-session-secret-v1:"
+	finishedMACContext   = "badcrypt-finished-mac-v1:"
+)
 
 func deriveTokenMask(sharedDH []byte, nonce []byte) ([16]byte, error) {
 	var mask [16]byte
@@ -523,7 +533,7 @@ func GenerateClientHello(token string, serverEdPub ...ed25519.PublicKey) (payloa
 	}
 
 	payload = make([]byte, ClientHelloSize)
-	copy(payload[0:4], MagicVectisHeader[:])
+	copy(payload[0:4], MagicHeader[:])
 	payload[4] = TypeClientHello
 
 	// 16-byte public TokenID (with optional ephemeral blinding for zero-linkability privacy)
@@ -590,7 +600,7 @@ func ProcessClientHelloWithCache(
 		return nil, emptySecret, "", ErrHandshakeMalformed
 	}
 
-	if !bytes.Equal(payload[0:4], MagicVectisHeader[:]) {
+	if !bytes.Equal(payload[0:4], MagicHeader[:]) {
 		return nil, emptySecret, "", ErrInvalidMagic
 	}
 	if payload[4] != TypeClientHello {
@@ -714,7 +724,7 @@ func ProcessClientHelloWithCache(
 	// Assemble ServerHello pre-signature portion:
 	// Magic(4) + Type(1) + SessionID(8) + ServerX25519Pub(32) + MLKEMCiphertext(1088) = 1133 bytes
 	respPayload = make([]byte, ServerHelloSize)
-	copy(respPayload[0:4], MagicVectisHeader[:])
+	copy(respPayload[0:4], MagicHeader[:])
 	respPayload[4] = TypeServerHello
 	binary.BigEndian.PutUint64(respPayload[5:13], assignSessionID)
 	copy(respPayload[13:45], serverX25519Priv.PublicKey().Bytes())
@@ -747,9 +757,9 @@ func ProcessClientHelloWithCache(
 	defer Zeroize(prk)
 
 	// Session Secret (for data encryption)
-	var sessionInfo [24 + sha256.Size]byte
-	copy(sessionInfo[:24], "vectis-session-secret-v1:")
-	copy(sessionInfo[24:], transcriptHash)
+	var sessionInfo [len(sessionSecretContext) + sha256.Size]byte
+	copy(sessionInfo[:len(sessionSecretContext)], sessionSecretContext)
+	copy(sessionInfo[len(sessionSecretContext):], transcriptHash)
 
 	kdfSession := hkdf.Expand(sha256.New, prk, sessionInfo[:])
 	if _, err := io.ReadFull(kdfSession, sessionSecret[:]); err != nil {
@@ -759,9 +769,9 @@ func ProcessClientHelloWithCache(
 
 	// Finished Confirmation MAC Key
 	var macKey [32]byte
-	var macInfo [22 + sha256.Size]byte
-	copy(macInfo[:22], "vectis-finished-mac-v1:")
-	copy(macInfo[22:], transcriptHash)
+	var macInfo [len(finishedMACContext) + sha256.Size]byte
+	copy(macInfo[:len(finishedMACContext)], finishedMACContext)
+	copy(macInfo[len(finishedMACContext):], transcriptHash)
 
 	kdfMAC := hkdf.Expand(sha256.New, prk, macInfo[:])
 	if _, err := io.ReadFull(kdfMAC, macKey[:]); err != nil {
@@ -804,7 +814,7 @@ func ProcessServerHello(
 		return 0, emptySecret, ErrHandshakeMalformed
 	}
 
-	if !bytes.Equal(respPayload[0:4], MagicVectisHeader[:]) {
+	if !bytes.Equal(respPayload[0:4], MagicHeader[:]) {
 		return 0, emptySecret, ErrInvalidMagic
 	}
 	if respPayload[4] != TypeServerHello {
@@ -866,9 +876,9 @@ func ProcessServerHello(
 
 	// 5. Verify Finished Confirmation MAC BEFORE deriving session secret (Verify-Before-Derive)
 	var macKey [32]byte
-	var macInfo [22 + sha256.Size]byte
-	copy(macInfo[:22], "vectis-finished-mac-v1:")
-	copy(macInfo[22:], transcriptHash)
+	var macInfo [len(finishedMACContext) + sha256.Size]byte
+	copy(macInfo[:len(finishedMACContext)], finishedMACContext)
+	copy(macInfo[len(finishedMACContext):], transcriptHash)
 
 	kdfMAC := hkdf.Expand(sha256.New, prk, macInfo[:])
 	if _, err := io.ReadFull(kdfMAC, macKey[:]); err != nil {
@@ -887,9 +897,9 @@ func ProcessServerHello(
 	}
 
 	// 6. Finished MAC verified: now derive the Session Secret
-	var sessionInfo [24 + sha256.Size]byte
-	copy(sessionInfo[:24], "vectis-session-secret-v1:")
-	copy(sessionInfo[24:], transcriptHash)
+	var sessionInfo [len(sessionSecretContext) + sha256.Size]byte
+	copy(sessionInfo[:len(sessionSecretContext)], sessionSecretContext)
+	copy(sessionInfo[len(sessionSecretContext):], transcriptHash)
 
 	kdfSession := hkdf.Expand(sha256.New, prk, sessionInfo[:])
 	if _, err := io.ReadFull(kdfSession, sessionSecret[:]); err != nil {
@@ -1052,7 +1062,7 @@ func FragmentHandshakePayload(payload []byte) ([][]byte, error) {
 	if len(payload) == 0 {
 		return nil, ErrHandshakeMalformed
 	}
-	if !bytes.Equal(payload[0:4], MagicVectisHeader[:]) {
+	if !bytes.Equal(payload[0:4], MagicHeader[:]) {
 		return nil, ErrInvalidMagic
 	}
 
@@ -1070,7 +1080,7 @@ func FragmentHandshakePayload(payload []byte) ([][]byte, error) {
 	chunkSize := MaxDatagramChunkSize
 	numFrags := (totalLen + chunkSize - 1) / chunkSize
 	if numFrags > 255 {
-		return nil, errors.New("crypto: payload too large for datagram fragmentation")
+		return nil, errors.New("badcrypt: payload too large for datagram fragmentation")
 	}
 
 	var fragID [8]byte
@@ -1088,7 +1098,7 @@ func FragmentHandshakePayload(payload []byte) ([][]byte, error) {
 		chunk := payload[offset:end]
 
 		frag := make([]byte, FragHeaderSize+len(chunk))
-		copy(frag[0:4], MagicVectisHeader[:])
+		copy(frag[0:4], MagicHeader[:])
 		frag[4] = fragType
 		copy(frag[5:13], fragID[:])
 		frag[13] = byte(i)
@@ -1226,7 +1236,7 @@ func (r *HandshakeReassembler) FeedFrom(datagram []byte, srcAddr string) ([]byte
 	if len(datagram) < 5 {
 		return nil, false, ErrHandshakeMalformed
 	}
-	if !bytes.Equal(datagram[0:4], MagicVectisHeader[:]) {
+	if !bytes.Equal(datagram[0:4], MagicHeader[:]) {
 		return nil, false, ErrInvalidMagic
 	}
 

@@ -1,86 +1,91 @@
-# Vectis Crypto (`github.com/vectis-net/vectis-crypto`)
+# Badcrypt (`github.com/ihatemyfcklife/badcrypt`)
 
-[![CI](https://github.com/vectis-net/vectis-crypto/actions/workflows/ci.yml/badge.svg)](https://github.com/vectis-net/vectis-crypto/actions)
-[![Go Report Card](https://goreportcard.com/badge/github.com/vectis-net/vectis-crypto)](https://goreportcard.com/report/github.com/vectis-net/vectis-crypto)
-[![Go Reference](https://pkg.go.dev/badge/github.com/vectis-net/vectis-crypto.svg)](https://pkg.go.dev/github.com/vectis-net/vectis-crypto)
+[![CI](https://github.com/ihatemyfcklife/badcrypt/actions/workflows/ci.yml/badge.svg)](https://github.com/ihatemyfcklife/badcrypt/actions)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ihatemyfcklife/badcrypt)](https://goreportcard.com/report/github.com/ihatemyfcklife/badcrypt)
+[![Go Reference](https://pkg.go.dev/badge/github.com/ihatemyfcklife/badcrypt.svg)](https://pkg.go.dev/github.com/ihatemyfcklife/badcrypt)
 [![License: GPL v3 / Commercial](https://img.shields.io/badge/License-GPLv3%20%2F%20Commercial-blue.svg)](LICENSE)
 
-**`vectis-crypto`** est une bibliothèque cryptographique Go durcie de niveau production, conçue pour les moteurs réseau à haut débit et très faible latence. Elle combine un **handshake post-quantique hybride authentifié (ML-KEM-768 + X25519 + Ed25519)**, un chiffrement authentifié **ChaCha20-Poly1305 avec fenêtre glissante anti-rejeu (RFC 6479)**, un démultiplexage par `SessionID` en données associées (AAD) et des pools de mémoire à zéro allocation réelle.
+**Badcrypt** is a hardened, production-ready Go cryptographic library engineered for high-throughput, low-latency network engines and secure protocols. It delivers an authenticated hybrid post-quantum key exchange (ML-KEM-768 + X25519 + Ed25519), high-performance directional ChaCha20-Poly1305 authenticated encryption with an RFC 6479 anti-replay sliding window, direct SessionID demultiplexing via Additional Authenticated Data (AAD), and true zero-allocation memory pooling.
 
 ---
 
-## 🚀 Caractéristiques Principales
+## Core Architecture and Features
 
-- 🛡️ **Handshake Post-Quantique Hybride Authentifié (PQC)** :
-  - Combinaison conforme aux standards **FIPS 203 (ML-KEM-768)**, **RFC 7748 (X25519)** et **RFC 8032 (Ed25519)**.
-  - **Arithmétique de Courbe Formellement Vérifiée (`filippo.io/edwards25519`)** : Conversion birationnelle Edwards-vers-Montgomery $u = (1+y)/(1-y) \pmod{2^{255}-19}$ via le package standard audité `filippo.io/edwards25519` (`Point.BytesMontgomery()`). Temps rigoureusement constant, immunisé aux attaques par canal auxiliaire et rejetant formellement le point neutre ($y = 1$) et les points de petit ordre pour interdire tout confinement de sous-groupe.
-  - **Précalcul & Cache d'Identité Serveur (`ServerIdentity`)** : Mise en cache concurrente des clés Montgomery dérivées (`getOrDeriveServerXPriv`), réduisant la vérification de l'identité serveur à **25 ns/op avec 0 allocation** et neutralisant tout DoS CPU sous afflux de paquets UDP non authentifiés.
-  - **Authentification mutuelle & Anti-MITM** : Le serveur signe l'intégralité du transcript de handshake à l'aide d'une clé d'identité Ed25519.
-  - **Confidentialité & Anti-Traçabilité Métadonnées (`TokenID` Blinding)** : Grâce à l'ECDH éphémère avec la clé publique du serveur, le `TokenID` est aveuglé à chaque handshake. Deux connexions du même client présentent des octets filaires mutuellement indépendants et indiscernables d'un bruit aléatoire, rendant impossible toute corrélation ou pistage passif lors du roaming (Wi-Fi $\leftrightarrow$ 4G/5G).
-  - **Liaison intégrale du Transcript** : Dérivation de clés via **HKDF-SHA256 (RFC 5869)** liant le `SessionID`, les nonces, les horodatages et toutes les clés publiques.
-- ⚡ **AEAD Directionnel ChaCha20-Poly1305 (RFC 8439) avec Anti-Rejeu** :
-  - **Nonce Fil Neutre Conforme WireGuard / RFC 8439** : Préfixe de 32 bits constant à zéro + compteur séquentiel 64 bits garantissant l'absence de toute fuite d'empreinte de clé sur le fil réseau.
-  - **Fenêtre glissante anti-rejeu (RFC 6479)** : Bitmap glissant de 256 paquets dans `ShardAEAD` rejetant immédiatement tout paquet dupliqué ou obsolète (`ErrReplayedPacket`) en **~15 ns**.
-  - **Démultiplexage réseau UDP direct** : Trame filaire constante (1380 octets) intégrant un champ `SessionID` (8 octets) authentifié en AAD.
-  - Dérivation de clés directionnelles disjointes (`c2sKey` pour Client $\rightarrow$ Serveur, `s2cKey` pour Serveur $\rightarrow$ Client).
-  - Protection contre l'épuisement de clé : arrêt gracieux avec `ErrKeyExhaustion` sans panic applicatif.
-  - Protection stricte contre la troncature : rejet explicite avec `ErrPayloadTooLarge` si la charge utile dépasse 1344 octets.
-- 🔄 **Cache Anti-Rejeu Salé par AES & Rétention Temporelle Stricte (`AntiReplayCache`)** :
-  - Structure segmentée en 64 shards avec adressage aléatoire par chiffrement par bloc **AES-128** (accéléré matériellement par AES-NI). Un attaquant ne peut cibler aucun shard.
-  - **Garantie d'immutabilité temporelle stricte** : Aucun nonce n'est jamais évincé tant que son horodatage est dans la fenêtre de validité ($T_{now} \le T_{expiry}$). En cas de saturation complète d'un shard par un flood massif, le cache refuse l'écrasement (Fail Closed) pour garantir qu'un handshake capturé ne puisse jamais être rejoué avant l'expiration de son TTL.
-  - Mémoire strictement bornée (~3 Mo pour 131 072 nonces concurrents).
-  - Évaluation de fraîcheur en **~75 ns/op**.
-- 🌐 **Fragmentation UDP & Réassemblage $O(1)$ DoS-Résistant (`HandshakeReassembler`)** :
-  - Découpage applicatif des handshakes PQC (`TypeClientHelloFrag` et `TypeServerHelloFrag`) en datagrammes de $\le 659$ octets filaires ($\le 707$ octets sur IPv6+UDP).
-  - **File chronologique $O(1)$, Quotas par Source & Rate Limiting (`FeedFrom`)** : Attribution par endpoint source (`IP:port`) avec quota configurable (`maxPendingPerSource = 4`) et limiteur de débit par seconde (`ErrSourceRateLimited`). Les sessions en cours d'assemblage (`received >= 2`) sont strictement protégées contre toute éviction par inondation de fragments forgés.
-- 🏎️ **Zéro Allocation Mémoire Réelle (`sync.Pool`)** :
-  - Gestion par pointeurs de tableaux fixes `*[1344]byte` et `*[1380]byte` supprimant tout échappement de slice headers sur le tas.
-  - Débit de scellement et déchiffrement supérieur à **~1.70 GB/s par cœur** avec **0 B/op et 0 alloc/op**.
-- 🧹 **Hygiène Mémoire & Sécurité (`Zeroize`)** :
-  - Effacement mémoire sécurisé via `clear` runtime et barrière mémoire anti-optimisation compilateur (`runtime.KeepAlive`).
+- **Authenticated Hybrid Post-Quantum Handshake (PQC)**:
+  - Cryptographic standard compliance: FIPS 203 (ML-KEM-768), RFC 7748 (X25519), and RFC 8032 (Ed25519).
+  - **Formally Verified Curve Arithmetic (`filippo.io/edwards25519`)**: Constant-time birational Edwards-to-Montgomery coordinate conversion ($u = (1+y)/(1-y) \pmod{2^{255}-19}$) via audited `filippo.io/edwards25519` primitives (`Point.BytesMontgomery()`). Formally rejects neutral points ($y = 1$) and low-order points (order dividing 8) to eliminate small-subgroup confinement attacks.
+  - **Precomputed Server Identity Cache (`ServerIdentity`)**: Concurrent thread-safe caching of Montgomery-derived private keys (`getOrDeriveServerXPriv`), bringing server identity derivation down to 25 ns/op with 0 allocations to eliminate CPU exhaustion attacks under unauthenticated UDP floods.
+  - **Mutual Authentication and Anti-MITM**: The server signs the entire cryptographic transcript hash using an Ed25519 identity private key.
+  - **Metadata Privacy and Untrackability (`TokenID` Blinding)**: Using ephemeral ECDH against the server's identity public key, client authentication tokens are blinded before transmission. Handshake packets from the same client present independent, pseudorandom wire representations indistinguishable from random noise, preventing traffic correlation and passive tracking during network roaming (Wi-Fi to cellular).
+  - **Comprehensive Transcript Binding**: Keys are derived through HKDF-SHA256 (RFC 5869) binding SessionID, nonces, timestamps, and all public keys.
+
+- **Directional ChaCha20-Poly1305 AEAD (RFC 8439) with Anti-Replay**:
+  - **WireGuard / RFC 8439 Compliant Nonce**: Constant 32-bit zero prefix paired with a monotonic 64-bit sequence counter preventing key fingerprint leaks over the wire.
+  - **Sliding Window Anti-Replay Protection (RFC 6479)**: 256-packet bitmap in `ShardAEAD` instantly rejecting replayed or out-of-order frames (`ErrReplayedPacket`) in approximately 15 ns.
+  - **Direct UDP Demultiplexing**: Calibrated 1380-byte constant frame embeds an 8-byte `SessionID` authenticated inside Additional Authenticated Data (AAD).
+  - **Directional Key Separation**: Derives distinct, isolated encryption keys (`c2sKey` for Client-to-Server, `s2cKey` for Server-to-Client).
+  - **Nonce Overflow Latch**: Permanent latch returning `ErrKeyExhaustion` before sequence counter wrap-around to prevent key reuse.
+  - **Memory Overlap Guard**: Strict detection of inexact slice overlaps (`anyOverlap`) safely returning `ErrInvalidBufferOverlap` to prevent buffer corruption.
+
+- **AES-128 Salted Handshake Anti-Replay Cache (`AntiReplayCache`)**:
+  - 64-shard partitioned structure indexed via hardware-accelerated AES-128 encryption (AES-NI). Attackers cannot predict or force hash collisions to target specific shards.
+  - **Strict Time-Based Retention**: Handshake nonces remain immutable and non-evictable while their timestamp falls within the validity window ($T_{now} \le T_{expiry}$). If a shard reaches full capacity during a high-rate flood, the cache fails closed, preventing replay of captured handshakes within their time-to-live.
+  - Strictly bounded memory footprint (~3 MB for 131,072 concurrent nonces).
+  - Nonce freshness check in ~75 ns/op.
+
+- **DoS-Resistant O(1) UDP Fragmentation and Reassembly (`HandshakeReassembler`)**:
+  - Automatically splits oversized post-quantum handshake payloads into MTU-safe datagrams ($\le 659$ wire bytes; $\le 707$ bytes on IPv6+UDP).
+  - **Per-Source Rate Limiting and Quotas (`FeedFrom`)**: Dynamic attribution by source address (`IP:port`) with configurable concurrency limits (`maxPendingPerSource = 4`) and rate limiters (`ErrSourceRateLimited`). Sessions with active progress ($\ge 2$ received fragments) are protected from eviction by incoming spoofed bursts.
+
+- **Zero Allocation Memory Pooling (`sync.Pool`)**:
+  - Fixed-array pointers (`*[1344]byte` and `*[1380]byte`) avoid heap escape of slice headers.
+  - Sealing and opening throughput exceeding 1.70 GB/s per core with 0 B/op and 0 allocs/op.
+
+- **Memory Hygiene and Secure Erasure (`Zeroize`)**:
+  - Cryptographic buffers are zeroed using runtime `clear` combined with compiler optimization barriers (`runtime.KeepAlive`).
 
 ---
 
-## 📊 Performances & Benchmarks
+## Performance Benchmarks
 
-Mesuré sur AMD Ryzen 5 3600 (Go 1.24+, Windows/Linux x86_64) :
+Measured on an AMD Ryzen 5 3600 (Go 1.24+, Linux x86_64):
 
-| Opération | Débit / Vitesse | Latence | Allocations Réelles |
+| Operation | Throughput / Speed | Latency | Real Memory Allocations |
 | :--- | :---: | :---: | :---: |
-| **`SealFrame` (SessionID + Nonce RFC 8439 + ChaCha20-Poly1305)** | **1 722.8 MB/s** (~1.72 GB/s) | **780.1 ns/op** | **0 B/op, 0 allocs/op** |
-| **`OpenFrame` (Auth AAD + Déchiffrement + Anti-Rejeu 256b)** | **1 659.4 MB/s** (~1.66 GB/s) | **809.9 ns/op** | **0 B/op, 0 allocs/op** |
-| **`SealFrame` In-Place (`&dst[0] == &src[0]`)** | **1 673.4 MB/s** (~1.67 GB/s) | **803.2 ns/op** | **0 B/op, 0 allocs/op** |
-| **`OpenFrame` In-Place (`&dst[0] == &src[0]`)** | **1 493.9 MB/s** (~1.49 GB/s) | **899.7 ns/op** | **0 B/op, 0 allocs/op** |
-| **`Seal` (Charge utile variable 1 KB)** | **1 575.6 MB/s** (~1.58 GB/s) | **649.9 ns/op** | **0 B/op, 0 allocs/op** |
-| **`Open` (Charge utile variable 1 KB)** | **1 484.6 MB/s** (~1.48 GB/s) | **689.7 ns/op** | **0 B/op, 0 allocs/op** |
-| **`Open` (Charge utile variable 1 KB avec AAD métadonnées)** | **1 300.7 MB/s** (~1.30 GB/s) | **787.3 ns/op** | **0 B/op, 0 allocs/op** |
-| **`ClientHello` (X25519 + ML-KEM-768)** | — | **124.2 µs/op** | **9.7 KB/op, 9 allocs/op** |
-| **`ClientHello` Masqué (ECDH birationnel constant-time)** | — | **188.9 µs/op** | **11.0 KB/op, 28 allocs/op** |
-| **`ServerHello` (ML-KEM + Signature Ed25519 + MAC)** | — | **290.7 µs/op** | **13.3 KB/op, 69 allocs/op** |
-| **`Ed25519ToX25519Pub` (Conversion birationnelle constant-time)** | — | **8.79 µs/op** | **96 B/op, 2 allocs/op** |
-| **`ServerIdentity.Derivation` (Cache Montgomery concurrent)** | — | **25.7 ns/op** | **0 B/op, 0 allocs/op** |
-| **`DatagramReassembly` (Découpage + Réassemblage UDP $O(1)$)** | — | **1.60 µs/op** | **4.0 KB/op, 7 allocs/op** |
-| **`TokenStore.Lookup` (Recherche $O(1)$ parmi 1 000 jetons)** | — | **140.1 ns/op** | **0 B/op, 0 allocs/op** |
-| **`TokenID` (SHA-256 masquage jeton zéro-allocation)** | — | **99.4 ns/op** | **0 B/op, 0 allocs/op** |
-| **`AntiReplayCache` (Salage AES-128 + Éviction adaptative)** | — | **76.9 ns/op** | **16 B/op, 1 alloc/op** |
-| **`SlidingWindowCheck` (Vérification RFC 6479 256 paquets)** | — | **15.6 ns/op** | **0 B/op, 0 allocs/op** |
-| **`BufferPools` (`Get` + `Put` recyclage complet)** | — | **69.4 ns/op** | **0 B/op, 0 allocs/op** |
+| `SealFrame` (SessionID + RFC 8439 Nonce + ChaCha20-Poly1305) | 1,722.8 MB/s (~1.72 GB/s) | 780.1 ns/op | 0 B/op, 0 allocs/op |
+| `OpenFrame` (AAD Auth + Decryption + 256-bit Anti-Replay) | 1,659.4 MB/s (~1.66 GB/s) | 809.9 ns/op | 0 B/op, 0 allocs/op |
+| `SealFrame` In-Place (`&dst[0] == &src[0]`) | 1,673.4 MB/s (~1.67 GB/s) | 803.2 ns/op | 0 B/op, 0 allocs/op |
+| `OpenFrame` In-Place (`&dst[0] == &src[0]`) | 1,493.9 MB/s (~1.49 GB/s) | 899.7 ns/op | 0 B/op, 0 allocs/op |
+| `Seal` (Variable-length payload 1 KB) | 1,575.6 MB/s (~1.58 GB/s) | 649.9 ns/op | 0 B/op, 0 allocs/op |
+| `Open` (Variable-length payload 1 KB) | 1,484.6 MB/s (~1.48 GB/s) | 689.7 ns/op | 0 B/op, 0 allocs/op |
+| `Open` (Variable-length 1 KB with AAD metadata) | 1,300.7 MB/s (~1.30 GB/s) | 787.3 ns/op | 0 B/op, 0 allocs/op |
+| `ClientHello` (X25519 + ML-KEM-768) | - | 124.2 us/op | 9.7 KB/op, 9 allocs/op |
+| `ClientHello` Blinded (Constant-time birational ECDH) | - | 188.9 us/op | 11.0 KB/op, 28 allocs/op |
+| `ServerHello` (ML-KEM + Ed25519 Signature + MAC) | - | 290.7 us/op | 13.3 KB/op, 69 allocs/op |
+| `Ed25519ToX25519Pub` (Constant-time conversion) | - | 8.79 us/op | 96 B/op, 2 allocs/op |
+| `ServerIdentity.Derivation` (Concurrent Montgomery cache) | - | 25.7 ns/op | 0 B/op, 0 allocs/op |
+| `DatagramReassembly` (UDP fragmentation + O(1) assembly) | - | 1.60 us/op | 4.0 KB/op, 7 allocs/op |
+| `TokenStore.Lookup` (O(1) lookup across 1,000 tokens) | - | 140.1 ns/op | 0 B/op, 0 allocs/op |
+| `TokenID` (SHA-256 zero-allocation token hashing) | - | 99.4 ns/op | 0 B/op, 0 allocs/op |
+| `AntiReplayCache` (AES-128 salting + adaptive eviction) | - | 76.9 ns/op | 16 B/op, 1 alloc/op |
+| `SlidingWindowCheck` (RFC 6479 256-packet sequence check) | - | 15.6 ns/op | 0 B/op, 0 allocs/op |
+| `BufferPools` (`Get` + `Put` full buffer recycling) | - | 69.4 ns/op | 0 B/op, 0 allocs/op |
 
 ---
 
-## 📦 Installation
+## Installation
 
 ```bash
-go get github.com/vectis-net/vectis-crypto
+go get github.com/ihatemyfcklife/badcrypt
 ```
 
-Nécessite **Go 1.24+** (utilisant le package standard `crypto/mlkem` et `golang.org/x/crypto`).
+Requirements: **Go 1.24+** (utilizing standard library `crypto/mlkem` and `golang.org/x/crypto`).
 
 ---
 
-## 💡 Guide d'Utilisation
+## Quick Start & Usage Examples
 
-### 1. Handshake Post-Quantique Authentifié (Datagrammes UDP / Réseau sans état)
+### 1. Authenticated Post-Quantum Handshake (Stateless UDP Datagrams)
 
 ```go
 package main
@@ -91,72 +96,75 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/vectis-net/vectis-crypto"
+	"github.com/ihatemyfcklife/badcrypt"
 )
 
 func main() {
-	// Clé d'identité statique du serveur (connue ou certifiée)
-	serverPub, serverPriv, _ := ed25519.GenerateKey(rand.Reader)
+	// Server static Ed25519 identity key pair
+	serverPub, serverPriv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		log.Fatalf("failed to generate server keys: %v", err)
+	}
 
-	// En production : TokenStore (thread-safe, lookup O(1) en 120 ns, immunisé au DoS CPU et aux data races)
-	tokens := crypto.NewTokenStore()
+	// Production token store: concurrent safe, O(1) lookup in ~140 ns
+	tokens := badcrypt.NewTokenStore()
 	tokens.Add("client-token-prod")
 	defer tokens.Close()
 
-	// 1. Côté Client : génération du ClientHello PQC (ML-KEM-768 + X25519)
-	// Le token est masqué en TokenID (non exposé en clair)
-	clientHello, clientPriv, decapsKey, nonce, err := crypto.GenerateClientHello("client-token-prod")
+	// 1. Client side: generate ClientHello (ML-KEM-768 + X25519)
+	// The token is blinded via ephemeral ECDH and transmitted as an unlinkable TokenID
+	clientHello, clientPriv, decapsKey, nonce, err := badcrypt.GenerateClientHello("client-token-prod", serverPub)
 	if err != nil {
 		log.Fatalf("ClientHello failed: %v", err)
 	}
 
-	// 2. Côté Serveur : traitement, vérification O(1) du token, signature Ed25519 et ServerHello
+	// 2. Server side: verify token in O(1), sign transcript with Ed25519, generate ServerHello
 	var sessionID uint64 = 0x8899aabbccddeeff
-	serverHello, serverSecret, token, err := crypto.ProcessClientHello(clientHello, serverPriv, tokens, sessionID)
+	serverHello, serverSecret, token, err := badcrypt.ProcessClientHello(clientHello, serverPriv, tokens, sessionID)
 	if err != nil {
 		log.Fatalf("ProcessClientHello failed: %v", err)
 	}
 
-	// 3. Côté Client : validation de l'authenticité du serveur et du Finished MAC
-	rxSessionID, clientSecret, err := crypto.ProcessServerHello(
+	// 3. Client side: verify server identity signature and Finished confirmation MAC
+	rxSessionID, clientSecret, err := badcrypt.ProcessServerHello(
 		clientHello, serverHello, clientPriv, decapsKey, nonce, "client-token-prod", serverPub,
 	)
 	if err != nil {
 		log.Fatalf("ProcessServerHello failed: %v", err)
 	}
 
-	fmt.Printf("Session %x établie avec succès ! Token: %s\n", rxSessionID, token)
-	// clientSecret == serverSecret (32 octets de clé maîtresse dérivée via HKDF-SHA256)
+	fmt.Printf("Session established: ID=%x Token=%s\n", rxSessionID, token)
+	// clientSecret == serverSecret (32-byte master secret derived through HKDF-SHA256)
+	_ = clientSecret
 }
 ```
 
-### 2. Handshake sur Flux Continu (`net.Conn`, TCP, Stream QUIC)
+### 2. Stream-Based Handshake (`net.Conn`, TCP, QUIC Stream)
 
 ```go
-// Côté Serveur (avec délai de garde contextuel anti-Slowloris et TokenStore)
-sessionID, secret, token, err := crypto.PerformServerHandshake(conn, serverPriv, tokens, sessionID)
+// Server side: includes contextual deadlines and TokenStore integration
+sessionID, secret, token, err := badcrypt.PerformServerHandshake(conn, serverPriv, tokens, sessionID)
 
-// Côté Client (avec vérification de la clé d'identité du serveur)
-sessionID, secret, err := crypto.PerformClientHandshake(conn, "client-token-prod", serverPub)
+// Client side: verifies server Ed25519 identity key
+sessionID, secret, err := badcrypt.PerformClientHandshake(conn, "client-token-prod", serverPub)
 ```
 
-### 3. Chiffrement Directionnel In-Place et Fenêtre Anti-Rejeu
+### 3. Directional In-Place AEAD Encryption & Anti-Replay Sliding Window
 
 ```go
-// Dérivation des clés c2s (client->serveur) et s2c (serveur->client) via HKDF
-c2sKey, s2cKey := crypto.DeriveDirectionalAEADKeys(sharedSecret[:])
+// Derive independent directional keys from shared master secret via HKDF
+c2sKey, s2cKey := badcrypt.DeriveDirectionalAEADKeys(sharedSecret[:])
 
-// Côté expéditeur : lié au sessionID
-senderAEAD, err := crypto.NewShardAEADWithSession(c2sKey, sessionID)
+// Sender side: bound to sessionID
+senderAEAD, err := badcrypt.NewShardAEADWithSession(c2sKey, sessionID)
 if err != nil {
 	log.Fatal(err)
 }
 
-// Scellement In-Place (Zéro-allocation, zéro-copie) :
-// 'buf' contient le clair à buf[:1344] avec cap(buf) >= 1380.
-// SealFrame décale le clair de 20 octets, injecte SessionID + Nonce et chiffre sur place !
-buf := crypto.GetWireFrameBuffer()
-defer crypto.PutWireFrameBuffer(buf)
+// In-place zero-allocation frame sealing:
+// buf contains plaintext at buf[:1344] with cap(buf) >= 1380
+buf := badcrypt.GetWireFrameBuffer()
+defer badcrypt.PutWireFrameBuffer(buf)
 copy(buf[:1344], plaintextPayload)
 
 sealedWire, err := senderAEAD.SealFrame(buf, buf[:1344])
@@ -164,82 +172,85 @@ if err != nil {
 	log.Fatalf("SealFrame error: %v", err)
 }
 
-// Côté récepteur : déchiffre In-Place, démultiplexe par sessionID et applique la fenêtre anti-rejeu
-receiverAEAD, err := crypto.NewShardAEADWithSession(c2sKey, sessionID)
-decrypted, err := receiverAEAD.OpenFrame(sealedWire, sealedWire)
+// Receiver side: decrypts in place, demultiplexes by SessionID, verifies anti-replay window
+receiverAEAD, err := badcrypt.NewShardAEADWithSession(c2sKey, sessionID)
 if err != nil {
-	log.Fatalf("Authentification ou déchiffrement échoué : %v", err)
+	log.Fatal(err)
 }
 
-// Toute tentative de rejouer 'sealedWire' sera immédiatement rejetée :
-// _, err = receiverAEAD.OpenFrame(sealedWire, sealedWire) -> crypto.ErrReplayedPacket
+decrypted, err := receiverAEAD.OpenFrame(sealedWire, sealedWire)
+if err != nil {
+	log.Fatalf("Authentication or decryption failed: %v", err)
+}
+
+// Any replayed frame is instantly rejected:
+// _, err = receiverAEAD.OpenFrame(sealedWire, sealedWire) -> badcrypt.ErrReplayedPacket
 ```
 
-### 4. 🌐 Recommandations MTU & Fragmentation UDP
+### 4. MTU Calibration & UDP Handshake Fragmentation
 
-La trame calibrée de `vectis-crypto` a une taille filaire constante de **`ConstantWireFrameSize = 1380` octets** (`8B SessionID + 12B Nonce + 1344B Chiffré + 16B Poly1305`).
+The calibrated Badcrypt wire frame has a constant length of `ConstantWireFrameSize = 1380` bytes (8B SessionID + 12B Nonce + 1344B Ciphertext + 16B Poly1305 Tag).
 
-- **Sur IPv4** : $1380 + 20 \text{ (IP)} + 8 \text{ (UDP)} = \mathbf{1408\text{ octets}}$.
-- **Sur IPv6** : $1380 + 40 \text{ (IP)} + 8 \text{ (UDP)} = \mathbf{1428\text{ octets}}$.
+- **IPv4 overhead**: $1380 + 20 \text{ (IP)} + 8 \text{ (UDP)} = 1408\text{ bytes}$
+- **IPv6 overhead**: $1380 + 40 \text{ (IP)} + 8 \text{ (UDP)} = 1428\text{ bytes}$
 
-Ces paquets s'intègrent sans fragmentation sur tout lien Ethernet standard (**MTU 1500**).
+Both payloads fit within standard Ethernet links without fragmentation (**MTU 1500**).
 
-Pour les environnements réseau à **MTU restreint** (`IPv6MinMTU = 1280`, `SafeInternetMTU = 1232`, WireGuard MTU 1420/1280, réseaux cellulaires 4G/5G) :
-- **Données applicatives** : utiliser l'API variable `Seal` et `Open` avec une charge utile calibrée : $\text{PlaintextMax} = \text{MTU} - 48 - 20 - 16$.
-- **Handshake PQC** : `ClientHello` (1261 octets) dépasse 1232 octets sur IPv6 ($1261 + 48 = 1309 > 1280$). Pour éviter tout *black-holing* silencieux, utiliser l'API de fragmentation native :
+For networks with constrained path MTUs (`IPv6MinMTU = 1280`, `SafeInternetMTU = 1232`, WireGuard MTU 1420/1280):
+- **Application payloads**: Use variable-length `Seal` and `Open` with: $\text{PlaintextMax} = \text{MTU} - 48 - 20 - 16$.
+- **PQC Handshakes**: `ClientHello` (1261 bytes) exceeds 1232 bytes under IPv6 ($1261 + 48 = 1309 > 1280$). To prevent packet drops, use native fragmentation:
 
 ```go
-// Côté Expéditeur (découpage en datagrammes <= 659 octets filaires) :
-frags, err := crypto.FragmentHandshakePayload(clientHello)
+// Sender: split handshake into datagrams <= 659 wire bytes
+frags, err := badcrypt.FragmentHandshakePayload(clientHello)
 for _, frag := range frags {
     udpConn.WriteTo(frag, serverAddr)
 }
 
-// Côté Destinataire (réassemblage borné DoS-safe avec attribution IP:port) :
-reassembler := crypto.NewHandshakeReassembler(512, 5*time.Second)
+// Receiver: bounded DoS-safe reassembly with source IP:port attribution
+reassembler := badcrypt.NewHandshakeReassembler(512, 5*time.Second)
 fullHello, ready, err := reassembler.FeedFrom(incomingDatagram, remoteAddr.String())
 if ready {
-    // Datagramme complet reconstitué sans allocation superflue
-    resp, secret, token, err := crypto.ProcessClientHello(fullHello, serverPriv, tokens, sessionID)
+    resp, secret, token, err := badcrypt.ProcessClientHello(fullHello, serverPriv, tokens, sessionID)
 }
 ```
 
 ---
 
-## 🔒 Modèle de Menace & Durcissement Cryptographique
+## Threat Model and Hardening Guarantees
 
-La suite de durcissement [`hardening_test.go`](hardening_test.go) et le fuzzing natif [`fuzz_test.go`](fuzz_test.go) couvrent activement :
+The automated test suite (`hardening_test.go`) and continuous fuzzing (`fuzz_test.go`) validate the following defenses:
 
-1. **Attaques Man-in-the-Middle (MITM)** : Tout serveur non détenteur de la clé privée Ed25519 correspondant à `serverPub` est systématiquement rejeté par le client (`ErrInvalidServerSignature`).
-2. **Attaques par Rejeu de Données Applicatives** : `ShardAEAD` maintient une fenêtre glissante de 256 paquets (RFC 6479). Tout paquet dupliqué ou obsolète est rejeté avec `ErrReplayedPacket`.
-3. **Altération du SessionID & Malléabilité du Transcript** : `SessionID`, horodatages et clés sont liés dans le `TranscriptHash` via HKDF et authentifiés en AAD. Toute altération en vol fait échouer la signature et invalide les clés.
-4. **Pistage Passif & Déanonymisation (`TokenID` Blinding)** : Le jeton est masqué dynamiquement à chaque handshake via ECDH éphémère (équivalence birationnelle Edwards-vers-Montgomery RFC 7748). Un espion passif (écoute Wi-Fi, FAI) observe des octets filaires à haute entropie impossibles à corréler, protégeant l'anonymat de l'utilisateur lors des changements d'IP (roaming).
-5. **Rejeu sous Inondation UDP (Flood Replay Attack)** : L'`AntiReplayCache` utilise un adressage cryptographique salé par **AES-128** et une **rétention temporelle stricte et inconditionnelle**. Aucun nonce n'est évincé tant que son horodatage est dans la fenêtre de validité (60s), même sous un flood artificiel de centaines de milliers de paquets UDP, garantissant l'intégrité absolue de la protection anti-rejeu.
-6. **Rejeu croisé (`c2s` $\leftrightarrow$ `s2c`) & Rejeu inter-sessions** : Dérivations disjointes par HKDF et validation stricte du `SessionID`.
-7. **Épuisement de clé (Nonce Rollover)** : Le compteur interne s'arrête avant tout rebouclage en renvoyant `ErrKeyExhaustion`.
-8. **Protection anti-panique & anti-corruption sur chevauchement mémoire** : Détection stricte et sans crash de tout chevauchement de mémoire (`anyOverlap`) renvoyant gracieusement `ErrInvalidBufferOverlap` et empêchant tout écrasement d'en-tête ou panique de la bibliothèque standard.
-9. **Hygiène mémoire stricte sur rejet anti-rejeu** : Effacement immédiat via `Zeroize` de toute charge utile déchiffrée en mémoire si la validation de séquence finale échoue.
-10. **Cycle de vie et clôture hermétique (`Close`)** : Verrouillage permanent du compteur au maximum, scellement étanche de la fenêtre anti-rejeu et effacement de l'état cryptographique résiduel en mémoire.
-11. **Calcul de `TokenID` à zéro allocation réelle** : Hachage SHA-256 direct sur pile sans aucune allocation sur le tas pour préserver les performances sous forte charge.
-12. **Zéro-allocation réelle sur métadonnées AAD** : Pool de tampons AAD (`aadPool`) garantissant 0 allocs/op lors du scellement et du déchiffrement avec métadonnées associées $\le 120$ octets.
-13. **Synchronisation stricte des délais d'attente réseau** : Élimination totale des conditions de course sur les deadlines de socket lors de l'annulation de contexte via `sync.WaitGroup` et support générique de l'interface `deadliner`.
-14. **Intégrité et Rejet des Fragments Corrompus** : `HandshakeReassembler` valide strictement les limites de mémoire, le type de fragment, les bits de duplication et purge automatiquement les états partiels après expiration TTL.
+1. **Man-in-the-Middle (MITM) Prevention**: Handshake responses missing a valid Ed25519 signature over the full transcript hash are rejected (`ErrInvalidServerSignature`).
+2. **Application Data Anti-Replay Protection**: `ShardAEAD` maintains an RFC 6479 256-packet bitmap. Stale or duplicate packet sequence numbers are rejected (`ErrReplayedPacket`).
+3. **SessionID Integrity & Transcript Immutability**: SessionID, timestamps, and key material are authenticated inside AAD and bound via HKDF transcript hashes. Any modification in transit invalidates signatures and prevents key derivation.
+4. **Metadata Privacy via TokenID Blinding**: Client identity tokens are dynamically blinded via ephemeral ECDH (Edwards-to-Montgomery birational equivalence, RFC 7748). Passive eavesdroppers observe high-entropy bytes indistinguishable from random noise, preventing correlation across IP changes.
+5. **Flood-Resistant Replay Defense**: `AntiReplayCache` utilizes AES-128 salted indexing and strict time retention. Legitimate handshakes are never evicted prematurely during high-rate UDP flooding attacks.
+6. **Cross-Direction and Cross-Session Isolation**: HKDF derives isolated key streams for each transmission direction (`c2s` vs `s2c`), and all frames enforce strict SessionID validation.
+7. **Key Exhaustion Latch**: Nonce counters permanently latch at `ErrKeyExhaustion` before sequence overflow can occur.
+8. **Memory Overlap Guard**: Detects partial buffer overlaps without crashing, gracefully returning `ErrInvalidBufferOverlap`.
+9. **Zeroization on Authentication Failure**: Decrypted buffers are wiped from memory via `Zeroize` if subsequent integrity or sequence checks fail.
+10. **Resource Cleanup (`Close`)**: Explicit teardown latches sequence counters, clears replay bitmaps, and zeroes sensitive memory buffers.
+11. **Zero-Allocation Token Hashing**: Stack-allocated SHA-256 buffers avoid heap allocation during token lookup.
+12. **Bounded AAD Buffer Pools**: Reusable AAD scratch buffers prevent allocations during authenticated frame processing.
+13. **Deadliner Race Condition Immunity**: Stream handshakes prevent goroutine leaks and race conditions across deadline cancellations via synchronization barriers.
+14. **Fragment Header Integrity**: `HandshakeReassembler` validates fragment bounds, prevents memory ballooning, and expires stale reassembly states.
 
 ---
 
-## 🧪 Tests, Fuzzing & Validation
+## Testing, Verification and Fuzzing
 
 ```bash
-# Exécution de l'intégralité des tests unitaires et de durcissement
+# Run all unit and hardening tests
 go test -v -count=1 ./...
 
-# Détection de data-race
+# Run tests with race detection enabled
 go test -race ./...
 
-# Benchmarks avec allocations mémoires réelles
+# Run memory allocation benchmarks
 go test -bench=".*" -benchmem ./...
 
-# Fuzzing natif Go
+# Native Go continuous fuzzing
 go test -fuzz=FuzzFrameDecoder -fuzztime=10s
 go test -fuzz=FuzzHandshakeParser -fuzztime=10s
 go test -fuzz=FuzzReplayCache -fuzztime=10s
@@ -249,8 +260,9 @@ go test -fuzz=FuzzSlidingWindowSequence -fuzztime=10s
 
 ---
 
-## 📄 Licence
+## License
 
-Ce composant est publié sous double licence :
-- **GNU General Public License v3.0 (GPLv3)** pour les projets Open-Source.
-- **Licence Commerciale & OEM** pour les intégrations industrielles, télécoms, avioniques et systèmes fermés nécessitant des garanties de support d'entreprise. Contact : `licensing@vectis.net`.
+Badcrypt is dual-licensed:
+
+- **GNU General Public License v3.0 (GPLv3)** for open-source applications.
+- **Commercial OEM & Enterprise License** for proprietary deployments, closed-source products, and embedded systems requiring non-copyleft terms and dedicated support. Contact: `ihatemyfcklife@proton.me`.

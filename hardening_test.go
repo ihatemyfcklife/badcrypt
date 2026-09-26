@@ -1,4 +1,4 @@
-package crypto
+package badcrypt
 
 import (
 	"bytes"
@@ -440,4 +440,3 @@ func TestHardening_UDPFragmentationTamperingDefense(t *testing.T) {
 
 	t.Log("[+] UDP fragment tampering defenses validated: malformed headers rejected and corrupted chunks caught")
 }
-

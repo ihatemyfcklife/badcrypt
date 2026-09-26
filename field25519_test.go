@@ -1,4 +1,4 @@
-package crypto
+package badcrypt
 
 import (
 	"bytes"
@@ -217,7 +217,7 @@ func TestHandshakeReassembler_PerSourceLimitAndRateLimiter(t *testing.T) {
 	r.SetMaxPerSource(2) // Max 2 pending handshakes from same IP
 
 	var payload [1000]byte
-	copy(payload[0:4], MagicVectisHeader[:])
+	copy(payload[0:4], MagicHeader[:])
 	payload[4] = TypeClientHello
 
 	// Client A at "192.168.1.10:5000" sends fragments for session 1
@@ -260,7 +260,7 @@ func TestHandshakeReassembler_ProgressProtection(t *testing.T) {
 	r := NewHandshakeReassembler(2, 5*time.Second)
 
 	var payload [1000]byte
-	copy(payload[0:4], MagicVectisHeader[:])
+	copy(payload[0:4], MagicHeader[:])
 	payload[4] = TypeClientHello
 
 	// Session A
@@ -300,7 +300,7 @@ func TestHandshakeReassembler_NoDeadlockUnderMultiFragmentSaturation(t *testing.
 
 	// Create payload needing 3 fragments: 1800 bytes
 	var payload [1800]byte
-	copy(payload[0:4], MagicVectisHeader[:])
+	copy(payload[0:4], MagicHeader[:])
 	payload[4] = TypeClientHello
 
 	// Attacker sends 3 sessions, each with 2 fragments received (partial progress)

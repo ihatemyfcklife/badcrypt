@@ -1,4 +1,4 @@
-package crypto
+package badcrypt
 
 import (
 	"crypto/cipher"
@@ -18,34 +18,34 @@ import (
 
 var (
 	// ErrInvalidAEADAuth is returned when ChaCha20-Poly1305 authentication fails.
-	ErrInvalidAEADAuth = errors.New("crypto: AEAD authentication verification failed")
+	ErrInvalidAEADAuth = errors.New("badcrypt: AEAD authentication verification failed")
 
 	// ErrCorruptWireFrame is returned when a wire frame has an invalid size or structure.
-	ErrCorruptWireFrame = errors.New("crypto: wire frame corrupted or invalid size")
+	ErrCorruptWireFrame = errors.New("badcrypt: wire frame corrupted or invalid size")
 
 	// ErrKeyExhaustion is returned when the 64-bit nonce counter reaches exhaustion.
-	ErrKeyExhaustion = errors.New("crypto: AEAD 64-bit nonce counter overflow - key exhaustion protection")
+	ErrKeyExhaustion = errors.New("badcrypt: AEAD 64-bit nonce counter overflow - key exhaustion protection")
 
 	// ErrPayloadTooLarge is returned when plaintext exceeds the constant frame size.
-	ErrPayloadTooLarge = errors.New("crypto: plaintext payload exceeds maximum calibrated frame size")
+	ErrPayloadTooLarge = errors.New("badcrypt: plaintext payload exceeds maximum calibrated frame size")
 
 	// ErrPayloadSizeMismatch is returned when SealFrame is called with a plaintext length
 	// that does not exactly match DefaultPlaintextFrameSize (1344 bytes).
 	// For variable-length data, use Seal / Open.
-	ErrPayloadSizeMismatch = errors.New("crypto: plaintext payload must be exactly calibrated frame size (1344 bytes); use Seal/Open for variable-length payloads")
+	ErrPayloadSizeMismatch = errors.New("badcrypt: plaintext payload must be exactly calibrated frame size (1344 bytes); use Seal/Open for variable-length payloads")
 
 	// ErrReplayedPacket is returned when a duplicate or out-of-window packet sequence number is received.
-	ErrReplayedPacket = errors.New("crypto: replayed or expired packet sequence number detected")
+	ErrReplayedPacket = errors.New("badcrypt: replayed or expired packet sequence number detected")
 
 	// ErrInvalidSessionID is returned when a wire frame's session ID does not match the active session.
-	ErrInvalidSessionID = errors.New("crypto: wire frame session ID mismatch")
+	ErrInvalidSessionID = errors.New("badcrypt: wire frame session ID mismatch")
 
 	// ErrInvalidBufferOverlap is returned when dst and src slices overlap in memory inexactly,
 	// violating the safety guarantees required to prevent memory corruption or panics.
-	ErrInvalidBufferOverlap = errors.New("crypto: invalid buffer overlap between destination and source")
+	ErrInvalidBufferOverlap = errors.New("badcrypt: invalid buffer overlap between destination and source")
 
 	// ErrNilAEAD is returned when an AEAD operation is called on a nil ShardAEAD instance.
-	ErrNilAEAD = errors.New("crypto: nil ShardAEAD instance")
+	ErrNilAEAD = errors.New("badcrypt: nil ShardAEAD instance")
 )
 
 const (
@@ -218,7 +218,7 @@ func (a *ShardAEAD) Close() {
 // DeriveAEADKeyFromSecret derives a 32-byte ChaCha20-Poly1305 key using HKDF-SHA256 (RFC 5869).
 func DeriveAEADKeyFromSecret(secret []byte) []byte {
 	key := make([]byte, chacha20poly1305.KeySize)
-	kdf := hkdf.New(sha256.New, secret, nil, []byte("vectis-aead-chacha20-poly1305-v1-salt"))
+	kdf := hkdf.New(sha256.New, secret, nil, []byte("badcrypt-aead-chacha20-poly1305-v1-salt"))
 	_, _ = io.ReadFull(kdf, key)
 	return key
 }
@@ -229,10 +229,10 @@ func DeriveDirectionalAEADKeys(secret []byte) (c2sKey, s2cKey []byte) {
 	c2sKey = make([]byte, chacha20poly1305.KeySize)
 	s2cKey = make([]byte, chacha20poly1305.KeySize)
 
-	kdfC2S := hkdf.New(sha256.New, secret, nil, []byte("vectis-aead-c2s-v1"))
+	kdfC2S := hkdf.New(sha256.New, secret, nil, []byte("badcrypt-aead-c2s-v1"))
 	_, _ = io.ReadFull(kdfC2S, c2sKey)
 
-	kdfS2C := hkdf.New(sha256.New, secret, nil, []byte("vectis-aead-s2c-v1"))
+	kdfS2C := hkdf.New(sha256.New, secret, nil, []byte("badcrypt-aead-s2c-v1"))
 	_, _ = io.ReadFull(kdfS2C, s2cKey)
 
 	return c2sKey, s2cKey

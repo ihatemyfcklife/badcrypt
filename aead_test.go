@@ -1,4 +1,4 @@
-package crypto
+package badcrypt
 
 import (
 	"bytes"
@@ -21,7 +21,7 @@ func TestShardAEAD_SealAndOpenFrame(t *testing.T) {
 	}
 
 	plaintext := make([]byte, DefaultPlaintextFrameSize)
-	copy(plaintext, []byte("Vectis Zero-Loss High-Speed Network Engine"))
+	copy(plaintext, []byte("Badcrypt Zero-Loss High-Speed Network Engine"))
 
 	dst := make([]byte, ConstantWireFrameSize)
 	sealed, err := aead.SealFrame(dst, plaintext)

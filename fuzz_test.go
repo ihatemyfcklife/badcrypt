@@ -1,4 +1,4 @@
-package crypto
+package badcrypt
 
 import (
 	"crypto/ed25519"

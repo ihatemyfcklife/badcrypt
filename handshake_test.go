@@ -1,4 +1,4 @@
-package crypto
+package badcrypt
 
 import (
 	"bytes"
@@ -1208,7 +1208,7 @@ func TestDatagramFragmentation_ErrorDefenses(t *testing.T) {
 
 	// 3. Direct unfragmented datagram pass-through
 	direct := make([]byte, ClientHelloSize)
-	copy(direct[:4], MagicVectisHeader[:])
+	copy(direct[:4], MagicHeader[:])
 	direct[4] = TypeClientHello
 	got, ready, err := r.Feed(direct)
 	if err != nil || !ready || !bytes.Equal(got, direct) {
@@ -1217,7 +1217,7 @@ func TestDatagramFragmentation_ErrorDefenses(t *testing.T) {
 
 	// 4. Invalid message type
 	badType := make([]byte, FragHeaderSize+10)
-	copy(badType[:4], MagicVectisHeader[:])
+	copy(badType[:4], MagicHeader[:])
 	badType[4] = 0x99
 	_, _, err = r.Feed(badType)
 	if !errors.Is(err, ErrInvalidMsgType) {
@@ -1226,7 +1226,7 @@ func TestDatagramFragmentation_ErrorDefenses(t *testing.T) {
 
 	// 5. Short fragment header
 	shortFrag := make([]byte, FragHeaderSize-1)
-	copy(shortFrag[:4], MagicVectisHeader[:])
+	copy(shortFrag[:4], MagicHeader[:])
 	shortFrag[4] = TypeClientHelloFrag
 	_, _, err = r.Feed(shortFrag)
 	if !errors.Is(err, ErrHandshakeMalformed) {
@@ -1291,4 +1291,3 @@ func TestAntiReplayCache_AESShardDistribution(t *testing.T) {
 		t.Fatalf("AES salting gave poor distribution: %d shards seen out of 64", len(shardsSeen))
 	}
 }
-

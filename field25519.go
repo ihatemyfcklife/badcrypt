@@ -1,4 +1,4 @@
-package crypto
+package badcrypt
 
 import (
 	"crypto/ecdh"
@@ -13,10 +13,10 @@ import (
 // u = (1 + y) / (1 - y) mod (2^255 - 19) as defined in RFC 7748 §4.1.
 //
 // Security & Validation Guarantees:
-// 1. Constant-time execution: fully immune to cache and branch timing attacks.
-// 2. Point validation: ensures the point lies on the edwards25519 curve.
-// 3. Small-subgroup confinement rejection: strictly rejects the neutral/identity
-//    point (y = 1) and any low-order points (order dividing 8).
+//  1. Constant-time execution: fully immune to cache and branch timing attacks.
+//  2. Point validation: ensures the point lies on the edwards25519 curve.
+//  3. Small-subgroup confinement rejection: strictly rejects the neutral/identity
+//     point (y = 1) and any low-order points (order dividing 8).
 func ed25519ToX25519Pub(edPub ed25519.PublicKey) (*ecdh.PublicKey, error) {
 	if len(edPub) != ed25519.PublicKeySize {
 		return nil, ErrInvalidServerKey

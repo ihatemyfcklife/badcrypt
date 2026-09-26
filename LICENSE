@@ -1,26 +1,26 @@
-Vectis Dual-Licensing Notice
-=============================
+Badcrypt Dual-Licensing Notice
+==============================
 
-Vectis Crypto is dual-licensed:
+Badcrypt is dual-licensed:
 
 1. GNU General Public License v3.0 (GPLv3) for Open Source Use:
    You may redistribute and/or modify this software under the terms of the
    GNU General Public License as published by the Free Software Foundation,
    either version 3 of the License, or (at your option) any later version.
    Under this copyleft license, any software that links against, embeds,
-   or derives from Vectis Crypto must also be released under the GPLv3 with full
+   or derives from Badcrypt must also be released under the GPLv3 with full
    source code made publicly available.
 
 2. Commercial OEM & Proprietary License:
    For commercial applications, closed-source deployments, proprietary hardware
-   integration (drones, robotics, avionics, telecom/5G infrastructure, defense),
+   integration (embedded systems, robotics, avionics, telecom infrastructure, defense),
    or systems requiring enterprise support and non-disclosure guarantees, commercial
-   OEM licenses are available directly from Vectis. Under a commercial license,
+   OEM licenses are available directly. Under a commercial license,
    you are NOT required to open-source your proprietary application code.
 
 For commercial licensing inquiries, custom adaptations, or enterprise SLAs:
-Contact: licensing@vectis.net / contact@vectis.net
-Website: https://vectis-net.github.io
+Contact: ihatemyfcklife@proton.me
+Website: https://github.com/ihatemyfcklife/badcrypt
 
 ==============================================================================
                     GNU GENERAL PUBLIC LICENSE

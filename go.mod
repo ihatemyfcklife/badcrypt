@@ -1,4 +1,4 @@
-module github.com/vectis-net/vectis-crypto
+module github.com/ihatemyfcklife/badcrypt
 
 go 1.24.0
 

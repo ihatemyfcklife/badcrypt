@@ -1,4 +1,4 @@
-package crypto
+package badcrypt
 
 import (
 	"crypto/subtle"
@@ -12,11 +12,11 @@ const (
 	SessionIDSize = 8
 
 	// DefaultPlaintextFrameSize is the standard calibrated payload size (1344 bytes)
-	// matching network path MTU constraints when combined with Vectis framing.
+	// matching network path MTU constraints when combined with Badcrypt framing.
 	DefaultPlaintextFrameSize = 1344
 
 	// ConstantPlaintextShardSize is an alias for DefaultPlaintextFrameSize for
-	// seamless backwards compatibility with Vectis RLNC shards.
+	// backwards compatibility with RLNC network shards.
 	ConstantPlaintextShardSize = DefaultPlaintextFrameSize
 
 	// NonceSize is the ChaCha20-Poly1305 nonce length in bytes (RFC 8439).
@@ -30,7 +30,7 @@ const (
 	ConstantWireFrameSize = SessionIDSize + NonceSize + DefaultPlaintextFrameSize + Overhead
 
 	// ConstantWireShardSize is an alias for ConstantWireFrameSize for
-	// seamless backwards compatibility with Vectis RLNC shards.
+	// backwards compatibility with RLNC network shards.
 	ConstantWireShardSize = ConstantWireFrameSize
 
 	// IPv6MinMTU is the minimum link MTU guaranteed by IPv6 (RFC 8200).

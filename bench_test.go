@@ -1,4 +1,4 @@
-package crypto
+package badcrypt
 
 import (
 	"crypto/ed25519"
@@ -327,5 +327,3 @@ func BenchmarkServerIdentity_DerivationCached(b *testing.B) {
 		_, _ = getOrDeriveServerXPriv(priv)
 	}
 }
-
-
