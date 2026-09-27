@@ -79,6 +79,8 @@ Measured on an AMD Ryzen 5 3600 (Go 1.24+, Linux x86_64):
 go get github.com/ihatemyfcklife/badcrypt
 ```
 
+Package documentation and API specifications are available on [pkg.go.dev/github.com/ihatemyfcklife/badcrypt](https://pkg.go.dev/github.com/ihatemyfcklife/badcrypt).
+
 Requirements: **Go 1.24+** (utilizing standard library `crypto/mlkem` and `golang.org/x/crypto`).
 
 ---
